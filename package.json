@@ -1,0 +1,24 @@
+{
+  "name": "bubbles",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anthonybotello/bubbles.git"
+  },
+  "keywords": [],
+  "author": "Anthony Botello",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/anthonybotello/bubbles/issues"
+  },
+  "homepage": "https://github.com/anthonybotello/bubbles#readme",
+  "dependencies": {
+    "express": "^4.17.1"
+  }
+}
