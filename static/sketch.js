@@ -15,10 +15,11 @@ To do:
 */
 
 var _score = 0; //tracks the player's score
-var _time = 60; //sets the time limit in seconds
+var _time = 10; //sets the time limit in seconds
 var _timeOffset; //records the running time whenever the game is restarted
 var _gameOver = false;
 var paused = false;
+var pauseTime;
 var redProbability; //determines the time-dependent probability of a generated bubble being red as 1/redProbability;
 var bubbles = [];
 var restartArea; //dimensions of the area occupied by restart option
@@ -47,7 +48,7 @@ function draw(){
 }
 
 function updateTime(){
-    let t = _time + _timeOffset - floor(millis()/1000);
+    let t = _time - floor((millis() - _timeOffset)/1000);
     redProbability = floor(t/10) + 2;
     if (t === 0){
         _gameOver = true;
@@ -117,7 +118,7 @@ function mouseClicked(){
             _gameOver = false;
             _score = 0;
             bubbles = [];
-            _timeOffset = floor(millis()/1000);
+            _timeOffset = millis();
             loop();
         }
     }
@@ -164,8 +165,14 @@ function keyPressed(){
     if (keyCode === 32){
         paused = !paused;
     } 
-    if (paused) noLoop();
-    else loop();
+    if (paused){
+        pauseTime = millis();
+        noLoop();
+    }
+    else{
+        _timeOffset += (millis() - pauseTime);
+        loop();
+    }
 }
 
 function windowResized(){
