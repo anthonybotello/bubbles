@@ -1,74 +1,40 @@
-// Status: Finished basic game mechanics, playable for single person
+/*
+Status: Finished basic game mechanics, playable for single person
 
-// Bugs discovered// 
-//    Major:
-//      -Endgame buttons not redrawn when resizing window
-//    Minor:
-//      -Timer occassionally counts down into negative (unable to reproduce)
-//      -Bubbles clickable while offscreen
+Bugs discovered
+   Minor:
+    -Timer occassionally counts down into negative (unable to reproduce)
 
-// To do //
-//    Major:
-//      -Add versus mode using socket.io
-//      -Add high score table using MongoDB
-//    Minor:
-//      -Style buttons for appearance and responsiveness
-//      -Refactor code for readability
+To do:
+   Major:
+    -Add versus mode using socket.io
+    -Add high score table using MongoDB
+   Minor:
+    -Add start page
+    -Refactor code for readability
+*/
 
 var _score = 0; //tracks the player's score
 var _time = 60; //sets the time limit in seconds
 var _timeOffset; //records the running time whenever the game is restarted
-
+var _gameOver = false;
 var paused = false;
 var redProbability; //determines the time-dependent probability of a generated bubble being red as 1/redProbability;
 var bubbles = [];
-var gameOver = false;
+var restartArea; //dimensions of the area occupied by restart option
 
 function setup(){
     frameRate(30); 
-    createCanvas(windowWidth/2,3*windowHeight/4);
+    let canvas = createCanvas(windowWidth/2,3*windowHeight/4);
     updateHeader(_time);
+    canvas.elt.style["top"] = 0.1*height + 10 + "px";
     _timeOffset = 0;
 }
 
 function draw(){
     background("#00a18b");
-//End game Mechanics
-////////////////////////////////////////////////////////////////////////////////////////
-    if (gameOver){
-        noLoop();
-        push();
-        stroke("#2e2e2e");
-        textAlign(CENTER, CENTER);
-        textSize(height/8);
-        text("GAME OVER", width/2,height/3);
-
-        restartBtn = createButton("Restart");
-        restartBtn.id("restart-btn");
-
-        // let saveScoreBtn;
-        // if (updateTime() === 0){
-        //     saveScoreBtn = createButton("Save Score");
-        //     saveScoreBtn.id("save-score-btn");
-        //     saveScoreBtn.position(width/2 - saveScoreBtn.width + 8, 0.45*height);
-        //     restartBtn.position(width/2 + 8, 0.45*height);
-        // }
-        // else{
-            restartBtn.position((width)/2 - restartBtn.width/2 + 8,0.45*height);
-        // }
-        pop();
-        restartBtn.elt.onclick = () => {
-            gameOver = false;
-            _score = 0;
-            bubbles = [];
-            restartBtn.remove();
-            // if (saveScoreBtn !== undefined){
-            //     saveScoreBtn.remove();
-            // }
-            _timeOffset = floor(millis()/1000);
-            loop();
-        }
-/////////////////////////////////////////////////////////////////////////////////////////
+    if (_gameOver){
+        gameOver();
     }
     else{
         updateHeader(updateTime());
@@ -84,7 +50,7 @@ function updateTime(){
     let t = _time + _timeOffset - floor(millis()/1000);
     redProbability = floor(t/10) + 2;
     if (t === 0){
-        gameOver = true;
+        _gameOver = true;
     }
     return t;
 }
@@ -110,19 +76,87 @@ function updateHeader(newTime){
     timer.style["left"] = (width - select("#timer").width)/2 + "px";
 }
 
+function gameOver(){
+    noLoop();
+    push();
+    fill("#1a1a1a");
+    textAlign(CENTER, CENTER);
+    textSize(0.125*height);
+    text("GAME OVER", 0.5*width, 0.35*height);
+    pop();
+
+    displayRestart(false);
+}
+
+function displayRestart(filled){
+    push();
+    noStroke();
+    if (filled){
+        fill("#ffffff");
+    }
+    else{
+        fill("#1a1a1a");
+    }
+    textSize(0.07*height);
+    textAlign(CENTER, CENTER);
+    text("Restart", 0.5*width, 0.45*height);
+    restartArea = [textWidth("Restart"), 0.07*height];
+    pop();
+}
+
 function mouseClicked(){
-    let cursor = createVector(mouseX, mouseY);
-    var index;
-    for (let i = bubbles.length-1; i >= 0; i--){
-        if (bubbles[i].position.dist(cursor) <= bubbles[i].radius){
-            index = i;
-            break;
+    if (_gameOver){
+        let restartWidth = restartArea[0];
+        let restartHeight = restartArea[1];
+        if (
+            mouseX >= 0.5*(width - restartWidth) &&
+            mouseX <= 0.5*(width + restartWidth) &&
+            mouseY >= (0.45*height - 0.5*restartHeight) &&
+            mouseY <= (0.45*height + 0.5*restartHeight)
+        ){
+            _gameOver = false;
+            _score = 0;
+            bubbles = [];
+            _timeOffset = floor(millis()/1000);
+            loop();
         }
     }
-    if (index != undefined){
-        _score += bubbles[index].points;
-        gameOver = bubbles[index].red;
-        bubbles.splice(index,1);
+    else{
+        if (mouseX >= 0 && mouseY >= 0){
+            let cursor = createVector(mouseX, mouseY);
+            var index;
+            for (let i = bubbles.length-1; i >= 0; i--){
+                if (bubbles[i].position.dist(cursor) <= bubbles[i].radius){
+                    index = i;
+                    break;
+                }
+            }
+            if (index != undefined){
+                _score += bubbles[index].points;
+                _gameOver = bubbles[index].red;
+                bubbles.splice(index,1);
+            }
+        }
+    }
+}
+
+function mouseMoved(){
+    if(_gameOver){
+        let restartWidth = restartArea[0];
+        let restartHeight = restartArea[1];
+        if (
+            mouseX >= 0.5*(width - restartWidth) &&
+            mouseX <= 0.5*(width + restartWidth) &&
+            mouseY >= (0.45*height - 0.5*restartHeight) &&
+            mouseY <= (0.45*height + 0.5*restartHeight)
+        ){
+            redraw();
+            displayRestart(true);
+        }
+        else{
+            redraw();
+            displayRestart(false);
+        }
     }
 }
 
@@ -136,8 +170,8 @@ function keyPressed(){
 
 function windowResized(){
     resizeCanvas(windowWidth/2, 3*windowHeight/4);
+    redraw();
 }
-
 class Bubble{
     constructor(x,y,r){
         this.oX = x; //sets the x-coordinate about which the bubble oscillates
@@ -186,7 +220,7 @@ class Bubble{
         }
         this.position.y--;
         
-        if (this.position.y + this.radius < 0.1*height){
+        if (this.position.y + this.radius < 0){
             this.offScreen = true;
             bubbles = bubbles.filter((bubble) => {return !bubble.offScreen});
         }
