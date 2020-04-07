@@ -15,7 +15,7 @@ To do:
 */
 
 var _score = 0; //tracks the player's score
-var _time = 10; //sets the time limit in seconds
+var _time = 60; //sets the time limit in seconds
 var _timeOffset; //records the running time whenever the game is restarted
 var _gameOver = false;
 var paused = false;
@@ -25,8 +25,8 @@ var bubbles = [];
 var restartArea; //dimensions of the area occupied by restart option
 
 function setup(){
-    frameRate(30); 
-    let canvas = createCanvas(windowWidth/2,3*windowHeight/4);
+    frameRate(30);
+    let canvas = createCanvas(500,500);
     updateHeader(_time);
     canvas.elt.style["top"] = 0.1*height + 10 + "px";
     _timeOffset = 0;
@@ -187,7 +187,7 @@ class Bubble{
         this.amplitude = floor(random(5,20)); //sets the magnitude of the x-axis oscillation
         this.direction = random(["left","right"]); //sets the direction to start oscillating when created
         this.points = 6-floor(this.radius/10);
-        this.offScreen = false;
+        // this.offScreen = false;
         this.red = (floor((random(redProbability) * redProbability)/redProbability) === 0)
     }
     display(){
@@ -228,8 +228,8 @@ class Bubble{
         this.position.y--;
         
         if (this.position.y + this.radius < 0){
-            this.offScreen = true;
-            bubbles = bubbles.filter((bubble) => {return !bubble.offScreen});
+            // this.offScreen = true;
+            bubbles = bubbles.filter((bubble) => {return bubble.position.y + bubble.radius >= 0});
         }
     }
 }

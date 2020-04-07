@@ -1,0 +1,14 @@
+canvas, #header{
+    position: absolute;
+}
+#score, #timer, #vs-mode, #p1, #p2{
+    margin: 0;
+    display: inline-block;
+    position: absolute;
+    bottom: 0px;
+    font-family: sans-serif;
+    color: #2e2e2e;
+}
+#vs-mode, #p2{
+    right: 0px;
+}
