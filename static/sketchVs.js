@@ -38,6 +38,7 @@ function setup(){
 
 function draw(){
     background("#00a18b");
+    updateHeader(time);
     if (!opponentID){
         waiting();
     }
@@ -47,7 +48,6 @@ function draw(){
     else{
         socket.emit('update');
         if (countdown <= 0){
-            updateHeader(time);
             displayBubbles();
         }
         else{
@@ -110,7 +110,7 @@ function updateHeader(newTime){
 
     let p1Score;
     let p2Score;
-    if (scores[socket.id] === undefined){
+    if (scores[opponentID] === undefined){
         p1Score = 0;
         p2Score = 0;
     }
