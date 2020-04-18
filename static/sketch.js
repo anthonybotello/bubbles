@@ -1,67 +1,141 @@
-/*
-Status: Finished basic game mechanics, playable for single person
+let restartArea;
+let restartHighlight;
+let time = 60;
+let countdown = 5;
+let scores = {};
+let bubbles = [];
+let gameOver = false;
+let poppedRed;
+let opponentID;
+let canvas;
+let mode;
+let start = false;
 
-Bugs discovered
-   Minor:
-    -Timer occassionally counts down into negative (unable to reproduce)
-
-To do:
-   Major:
-    -Add versus mode using socket.io
-    -Add high score table using MongoDB
-   Minor:
-    -Add start page
-    -Refactor code for readability
-*/
-
-var _score = 0; //tracks the player's score
-var _time = 60; //sets the time limit in seconds
-var _timeOffset; //records the running time whenever the game is restarted
-var _gameOver = false;
-var paused = false;
-var pauseTime;
-var redProbability; //determines the time-dependent probability of a generated bubble being red as 1/redProbability;
-var bubbles = [];
-var restartArea; //dimensions of the area occupied by restart option
+let socket;
 
 function setup(){
-    frameRate(30);
-    let canvas = createCanvas(500,500);
-    updateHeader(_time);
-    canvas.elt.style["top"] = 0.1*height + 10 + "px";
-    _timeOffset = 0;
+    canvas = createCanvas(500,500);
+    canvas.elt.style["top"] = "65px";
+    canvas.elt.style["left"] = 0.5*windowWidth - 250 + "px";
+
+    if (location.href.substr(-2) === 'vs'){
+        mode = 'vs';
+        modeSelect.href = "../";
+        modeSelect.innerHTML = "Single Player";
+        socket = io('/vs');
+        socket.on('ready', (oppID) => {
+            if (oppID !== socket.id){
+                opponentID = oppID;
+            }
+        });
+        socket.on('opponent disconnect', () => {
+            opponentID = undefined;
+        });
+    }
+    else{
+        mode = 'single';
+        modeSelect.href = "vs";
+        modeSelect.innerHTML = "VS Mode";
+        socket = io('/single');
+        opponentID = "n/a";
+        canvas.elt.onclick = () => {
+            start = true;
+        }
+    }
+
+    socket.on('countdown', (count) => {
+        countdown = ceil(count/1000);
+    });
+    socket.on('update', (gameState) => {
+        time = ceil(gameState.time/1000);
+        scores = gameState.scores;
+        bubbles = gameState.bubbles;
+        gameOver = gameState.gameOver;
+        poppedRed = gameState.poppedRed;
+    });
+
+    frameRate(24);
+    updateHeader(time);
+    header.style["left"] = 0.5*windowWidth - 250 + "px";
 }
 
 function draw(){
     background("#00a18b");
-    if (_gameOver){
-        gameOver();
+    updateHeader(time);
+    if (mode === 'vs' && !opponentID){
+        waiting();
+    }
+    else if (mode ==='single' && !start){
+        startScreen();
+    }
+    else if (gameOver){
+        endGame();
     }
     else{
-        updateHeader(updateTime());
-        newBubble();
-        for (let bubble of bubbles){
-            bubble.display();
-            bubble.move();
+        socket.emit('update');
+        if (countdown <= 0){
+            displayBubbles();
+        }
+        else{
+            updateCountdown();
         }
     }
 }
 
-function updateTime(){
-    let t = _time - floor((millis() - _timeOffset)/1000);
-    redProbability = floor(t/10) + 2;
-    if (t === 0){
-        _gameOver = true;
-    }
-    return t;
+function startScreen(){
+    push();
+    fill("#1a1a1a");
+    textSize(30);
+    textAlign(CENTER, CENTER);
+    text("Click to start", 250, 150);
+    pop();
 }
 
-function newBubble(){
-    if (bubbles.length < floor(width/8)){
-        x = floor(random(width));
-        y = floor(randomGaussian(height-100,height/2));
-        r = floor(random(10,60));
-        bubbles.push(new Bubble(x,y,r));
+function waiting(){
+    let waitMsg = "Waiting for opponent";
+    for (let i = 0; i < second() % 4; i++){
+        waitMsg += ".";
+    }
+    push();
+    fill("#1a1a1a");
+    textSize(30);
+    textAlign(LEFT, CENTER);
+    text(waitMsg, 95, 150);
+    pop();
+}
+
+function updateCountdown(){
+    push();
+    fill("#1a1a1a");
+    textSize(40);
+    textAlign(CENTER, CENTER);
+    text("Game starting in", 250,100);
+    textSize(180);
+    text(countdown, 250, 220);
+    pop();
+}
+
+function displayBubbles(){
+    for (let bubble of bubbles){
+        push();
+        if (bubble.isRed){
+            stroke("#a63737");
+            fill("#e34646");
+        }
+        else{
+            stroke("#6fad94");
+            fill("#b3ffe0");
+        }
+        circle(bubble.x, bubble.y, 2*bubble.r);
+
+        noStroke();
+        fill("#4a4e52");
+        textSize(-1*(bubble.points - 6)*12);
+        textAlign(CENTER,CENTER);
+        if (!bubble.isRed){
+            text(`${bubble.points}`, bubble.x, bubble.y);
+        }
+        pop();
     }
 }
 
@@ -69,30 +143,87 @@ function updateHeader(newTime){
     header.style["width"] = width + "px";
     header.style["height"] = 0.1*height + "px";
 
-    score.innerHTML = "Score: " + _score;
-    score.style["font-size"] = 0.05*height + "px";
+    let p1Score;
+    let p2Score;
+    if (mode === 'vs'){
+        if (scores[opponentID] === undefined){
+            p1Score = 0;
+            p2Score = 0;
+        }
+        else{
+            p1Score = scores[socket.id];
+            p2Score = scores[opponentID];
+        }
+    }
+    else{
+        if (scores[socket.id] === undefined){
+            p1Score = 0;
+        }
+        else{
+            p1Score = scores[socket.id];
+        }
+    }
+    p1.innerHTML = "You: " + p1Score;
+    p1.style["font-size"] = 0.05*height + "px";
+    p2.innerHTML = "Opponent: " + p2Score;
+    p2.style["font-size"] = 0.05*height + "px";
 
-    timer.innerHTML = newTime;
+    if(mode === 'single'){
+        p1.innerHTML = "Score: " + p1Score;
+        p2.style["display"] = "none";
+    }
+
+    if (newTime > 60){
+        timer.innerHTML = 60;
+    }
+    else{
+        timer.innerHTML = newTime;
+    }
     timer.style["font-size"] = 0.08*height + "px";
     timer.style["left"] = (width - select("#timer").width)/2 + "px";
 }
 
-function gameOver(){
-    noLoop();
+function endGame(){
+    let result;
+    if (mode === 'vs'){
+        if (poppedRed === opponentID){
+            result = "You win!";
+        }
+        else if (poppedRed === socket.id){
+            result = "You lose!";
+        }
+        else{
+            if (poppedRed === socket.id || scores[socket.id] < scores[opponentID]){
+                result = "You lose!";
+            }
+            else if (poppedRed === opponentID || scores[socket.id] > scores[opponentID]){
+                result = "You win!";
+            }
+            else{
+                result = "It's a draw!";
+            }
+        }
+    }
+    else{
+        if (poppedRed){
+            result = "You lose!";
+        }
+        else{
+            result = "Score: " + scores[socket.id];
+        }
+    }
     push();
     fill("#1a1a1a");
     textAlign(CENTER, CENTER);
     textSize(0.125*height);
-    text("GAME OVER", 0.5*width, 0.35*height);
+    text(result, 0.5*width, 0.35*height);
     pop();
-
-    displayRestart(false);
+    displayRestart(restartHighlight);
 }
 
-function displayRestart(filled){
+function displayRestart(hover){
     push();
-    noStroke();
-    if (filled){
+    if (hover){
         fill("#ffffff");
     }
     else{
@@ -101,12 +232,12 @@ function displayRestart(filled){
     textSize(0.07*height);
     textAlign(CENTER, CENTER);
     text("Restart", 0.5*width, 0.45*height);
-    restartArea = [textWidth("Restart"), 0.07*height];
     pop();
+    restartArea = [textWidth("Restart"), 0.07*height];
 }
 
 function mouseClicked(){
-    if (_gameOver){
+    if (gameOver){
         let restartWidth = restartArea[0];
         let restartHeight = restartArea[1];
         if (
@@ -115,34 +246,24 @@ function mouseClicked(){
             mouseY >= (0.45*height - 0.5*restartHeight) &&
             mouseY <= (0.45*height + 0.5*restartHeight)
         ){
-            _gameOver = false;
-            _score = 0;
-            bubbles = [];
-            _timeOffset = millis();
-            loop();
+            socket.emit('restart');
         }
     }
     else{
         if (mouseX >= 0 && mouseY >= 0){
             let cursor = createVector(mouseX, mouseY);
-            var index;
             for (let i = bubbles.length-1; i >= 0; i--){
-                if (bubbles[i].position.dist(cursor) <= bubbles[i].radius){
-                    index = i;
+                if (cursor.dist(new p5.Vector(bubbles[i].x, bubbles[i].y)) <= bubbles[i].r){
+                    socket.emit('popped', i);
                     break;
                 }
-            }
-            if (index != undefined){
-                _score += bubbles[index].points;
-                _gameOver = bubbles[index].red;
-                bubbles.splice(index,1);
             }
         }
     }
 }
 
 function mouseMoved(){
-    if(_gameOver){
+    if(gameOver){
         let restartWidth = restartArea[0];
         let restartHeight = restartArea[1];
         if (
@@ -151,85 +272,16 @@ function mouseMoved(){
             mouseY >= (0.45*height - 0.5*restartHeight) &&
             mouseY <= (0.45*height + 0.5*restartHeight)
         ){
-            redraw();
-            displayRestart(true);
+            restartHighlight = true;
         }
         else{
-            redraw();
-            displayRestart(false);
+            restartHighlight = false;
         }
-    }
-}
-
-function keyPressed(){
-    if (keyCode === 32){
-        paused = !paused;
-    } 
-    if (paused){
-        pauseTime = millis();
-        noLoop();
-    }
-    else{
-        _timeOffset += (millis() - pauseTime);
-        loop();
     }
 }
 
 function windowResized(){
-    resizeCanvas(windowWidth/2, 3*windowHeight/4);
+    canvas.elt.style["left"] = 0.5*windowWidth - 250 + "px";
+    header.style["left"] = 0.5*windowWidth - 250 + "px";
     redraw();
-}
-class Bubble{
-    constructor(x,y,r){
-        this.oX = x; //sets the x-coordinate about which the bubble oscillates
-        this.radius = r;
-        this.position = createVector(x,y);
-        this.amplitude = floor(random(5,20)); //sets the magnitude of the x-axis oscillation
-        this.direction = random(["left","right"]); //sets the direction to start oscillating when created
-        this.points = 6-floor(this.radius/10);
-        // this.offScreen = false;
-        this.red = (floor((random(redProbability) * redProbability)/redProbability) === 0)
-    }
-    display(){
-        push();
-        if (this.red){
-            this.points = 0;
-            stroke("#a63737");
-            fill("#e34646");
-        }
-        else{
-            stroke("#6fad94");
-            fill("#b3ffe0");
-        }
-        circle(this.position.x, this.position.y, 2*this.radius);
-
-        noStroke();
-        fill("#4a4e52");
-        textSize(-1*(this.points - 6)*12);
-        textAlign(CENTER,CENTER);
-        if (!this.red){
-            text(`${this.points}`, this.position.x, this.position.y);
-        }
-        pop();
-    }
-    move(){
-        switch (this.direction){
-            case "left":
-                this.position.x--;
-                if (this.position.x === this.oX - this.amplitude)
-                    this.direction = "right";
-                break;
-            case "right":
-                this.position.x++;
-                if (this.position.x === this.oX + this.amplitude)
-                    this.direction = "left";
-                break;
-        }
-        this.position.y--;
-        
-        if (this.position.y + this.radius < 0){
-            // this.offScreen = true;
-            bubbles = bubbles.filter((bubble) => {return bubble.position.y + bubble.radius >= 0});
-        }
-    }
 }

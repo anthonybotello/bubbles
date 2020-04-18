@@ -4,7 +4,7 @@ class GameState{
         this.countdown = 5000;
         this.time = 65000;
         this.timeElapsed = 0;
-        this.scores;
+        this.scores = {};
         this.bubbles = [];
         this.gameOver = false;
         this.poppedRed;

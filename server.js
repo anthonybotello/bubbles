@@ -10,8 +10,47 @@ app.get('/', (req, res) =>{
     res.sendFile(__dirname + '/static/bubbles.html');
 });
 
+const single = io.of('/single');
+
+single.on('connection', (socket) => {
+    let gameState;
+
+    socket.on('update', () => {
+        if (gameState === undefined){
+            gameState = new GameState();
+            gameState.scores[socket.id] = 0;
+        }
+        gameState.updateTimeElapsed();
+        if (gameState.updateCountdown() > 0){
+            socket.emit('countdown', gameState.updateCountdown());
+        }
+        else{
+            socket.emit('countdown', 0);
+            socket.emit('update', createUpdate(gameState));
+        }
+    });
+
+    socket.on('popped', (index) => {
+        gameState.scores[socket.id] += gameState.bubbles[index].points;
+        gameState.gameOver = gameState.bubbles[index].isRed;
+        gameState.bubbles.splice(index, 1);
+        if (gameState.gameOver){
+            gameState.poppedRed = socket.id;
+        }
+        single.emit('update', createUpdate(gameState));
+    });
+
+    socket.on('restart', () => {
+        gameState = new GameState();
+        gameState.scores[socket.id] = 0;
+        single.emit('update', createUpdate(gameState));
+    });
+});
+
+
+
 app.get('/vs', (req, res) => {
-    res.sendFile(__dirname + '/static/bubblesVs.html');
+    res.sendFile(__dirname + '/static/bubbles.html');
 });
 
 const vs = io.of('/vs');
@@ -93,7 +132,7 @@ vs.on('connection', (socket) => {
         }
         gameState.scores = scores;
         games[socket.gameRoom] = gameState;
-        vs.in(socket.gameRoom).emit('update', gameState);
+        vs.in(socket.gameRoom).emit('update', createUpdate(gameState));
     });
 });
 
